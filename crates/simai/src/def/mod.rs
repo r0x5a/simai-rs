@@ -14,9 +14,9 @@ pub enum Item {
 
 	Tap(Tap),
 	Hold(Hold),
-
 	TouchTap(TouchTap),
 	TouchHold(TouchHold),
+	Slide(Slide),
 
 	Tick(Tick),
 	PseudoTick(PseudoTick),

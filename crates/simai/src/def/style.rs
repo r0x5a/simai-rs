@@ -19,10 +19,10 @@ bitflags::bitflags! {
 	pub struct HoldStyle: S { const _ = BREAK | EX; }
 
 	#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-	pub struct StarStyle: S { const _ = BREAK | EX | TAP_STAR | REMOVE; }
+	pub struct StarStyle: S { const _ = BREAK | EX | TAP_STAR | REMOVE | SUDDEN; }
 
 	#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-	pub struct SlideStyle: S { const _ = BREAK | SUDDEN; }
+	pub struct SlideStyle: S { const _ = BREAK; }
 
 	#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 	pub struct TouchStyle: S { const _ = FIREWORK; }

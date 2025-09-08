@@ -1,6 +1,6 @@
 use fraction::BigFraction;
 
-use crate::def::{HoldStyle, TapStyle, TouchStyle};
+use crate::def::{HoldStyle, SlideStyle, StarStyle, TapStyle, TouchStyle};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[rustfmt::skip]
@@ -49,6 +49,12 @@ pub enum Len {
 	Zero,
 }
 
+impl Len {
+	pub fn bpm(bpm: f64, p: u32, q: u32) -> Self {
+		Len::Bpm { bpm, frac: Frac::new(q, p) }
+	}
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum Wait {
 	Rel,
@@ -71,6 +77,24 @@ pub enum Shape {
 	V,
 	Fan,
 	Angle(Key),
+}
+
+impl From<char> for Shape {
+	fn from(c: char) -> Self {
+		match c {
+			'-' => Shape::Line,
+			'<' => Shape::ArcLeft,
+			'>' => Shape::ArcRight,
+			'^' => Shape::Arc,
+			'p' => Shape::P,
+			'q' => Shape::Q,
+			's' => Shape::S,
+			'z' => Shape::Z,
+			'v' => Shape::V,
+			'w' => Shape::Fan,
+			_ => unreachable!(),
+		}
+	}
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -103,4 +127,17 @@ pub struct TouchHold {
 	pub sensor: Sensor,
 	pub len: Len,
 	pub style: TouchStyle,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Slide {
+	pub key: Key,
+	pub star_style: StarStyle,
+	pub tracks: Vec<(SlideTrack, SlideStyle)>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum SlideTrack {
+	Amortized { path: Vec<(Shape, Key)>, wait: Wait, len: Len },
+	Piecewise { path: Vec<(Shape, Key, Len)>, wait: Wait },
 }
