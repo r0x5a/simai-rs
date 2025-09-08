@@ -1,0 +1,9 @@
+[package]
+name = "simai"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+bitflags = "2.9.4"
+chumsky = "0.10.1"
+fraction = "0.15.3"
