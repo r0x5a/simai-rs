@@ -1,4 +1,4 @@
-use chumsky::prelude::*;
+use chumsky::{extra::Err, prelude::*};
 
 use crate::def::*;
 
@@ -10,7 +10,7 @@ macro_rules! make_styles {
 
 // TODO: also return a lenient parser
 // comments are not handled here. use a preprocessor to remove comments
-pub fn simai<'a>() -> impl Parser<'a, &'a str, Vec<Item>> {
+pub fn simai<'a>() -> impl Parser<'a, &'a str, Vec<Item>, Err<Rich<'a, char>>> {
 	let sym = |c| just(c).padded();
 	let sym2 = |c| just(c).padded();
 
@@ -84,7 +84,7 @@ pub fn simai<'a>() -> impl Parser<'a, &'a str, Vec<Item>> {
 		.then_ignore(sym2("##"))
 		.then(choice((len_rel, len_abs, len_bpm)))
 		.map(|(time, len)| (Wait::Abs(time), len));
-	let wait_any = choice((wait_rel, wait_bpm, wait_abs)).delimited_by(sym('['), sym(']'));
+	let wait_any = choice((wait_rel, wait_bpm, wait_abs)).delimited_by(sym('['), sym(']')).boxed();
 
 	// shape
 	let shape = choice((
@@ -112,7 +112,7 @@ pub fn simai<'a>() -> impl Parser<'a, &'a str, Vec<Item>> {
 	let slide_ext = shape.clone().then(key.clone());
 	let slide_ext_styled = group((shape.clone(), key.clone(), slide_styles));
 
-	let slide_track_singular = group((slide_ext_styled.clone(), wait_any, slide_styles)).map(
+	let slide_track_singular = group((slide_ext_styled.clone(), wait_any.clone(), slide_styles)).map(
 		|((shape, key, s1), (wait, len), s2)| SlideTrack::Amortized {
 			path: vec![(shape, key)],
 			wait,
@@ -123,13 +123,13 @@ pub fn simai<'a>() -> impl Parser<'a, &'a str, Vec<Item>> {
 	let slide_track_amortized = group((
 		slide_ext.clone().repeated().at_least(1).collect::<Vec<_>>(),
 		slide_styles,
-		wait_any,
+		wait_any.clone(),
 		slide_styles,
 	))
 	.map(|(path, s1, (wait, len), s2)| SlideTrack::Amortized { path, wait, style: s1 | s2, len });
 	let slide_track_piecewise = group((
 		slide_ext.clone(),
-		wait_any,
+		wait_any.clone(),
 		slide_ext.then(len.clone()).map(|((a, b), c)| (a, b, c)).repeated().collect::<Vec<_>>(),
 		slide_ext_styled.then(len).or_not(),
 		slide_styles,
@@ -187,7 +187,8 @@ pub fn simai<'a>() -> impl Parser<'a, &'a str, Vec<Item>> {
 		tap_group.map(I::Items),
 		slide.map(I::Item),
 		choice((tap, touch_tap)).map(I::Item),
-	));
+	))
+	.boxed();
 	let first_note_item = note_item.clone().map(Vec::from);
 	let note_items = choice((
 		first_note_item.foldl(sym('/').ignore_then(note_item).repeated(), |mut acc, item| {
@@ -205,14 +206,16 @@ pub fn simai<'a>() -> impl Parser<'a, &'a str, Vec<Item>> {
 		bpm.map(I::Item),
 		div.map(I::Item),
 		div_abs.map(I::Item),
-	));
-	let main_items = pre_items.or_not().then(note_items.clone().or_not()).map(|(pre, notes)| {
-		let mut v = pre.map(Vec::from).unwrap_or_default();
-		if let Some(notes) = notes {
-			v.extend(notes);
-		}
-		v
-	});
+	))
+	.boxed();
+	let main_items =
+		pre_items.clone().or_not().then(note_items.clone().or_not()).map(|(pre, notes)| {
+			let mut v = pre.map(Vec::from).unwrap_or_default();
+			if let Some(notes) = notes {
+				v.extend(notes);
+			}
+			v
+		});
 
 	// misc
 	let tick = sym(',').repeated().at_least(1).count().map(|v| Item::Tick(Tick(v as u32)));
@@ -235,4 +238,11 @@ pub fn simai<'a>() -> impl Parser<'a, &'a str, Vec<Item>> {
 		acc.append(&mut notes);
 		acc
 	})
+}
+
+pub fn rm_comments(s: &str) -> String {
+	s.lines()
+		.map(|line| if let Some(pos) = line.find("||") { &line[..pos] } else { line })
+		.collect::<Vec<_>>()
+		.join("\n")
 }
