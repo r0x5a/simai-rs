@@ -100,11 +100,10 @@ pub fn simai<'a>() -> impl Parser<'a, &'a str, Vec<Item>, Err<Rich<'a, char>>> {
 	// - piecewise: A-B[any wait]-C[hold len]-D(style?)[hold len]
 	//
 	// the actual parsing logic (prio from top to bottom):
-	// - singular:		slide_ext_styled wait_any style?
 	// - piecewise:		slide_ext wait_any (slide_ext len)* (slide_ext_styled len)? style?
 	// - amortized:		slide_ext+ style? wait_any style?
 	// These parsing logic avoided the '*' and '+' operators early consuming too much input.
-	// "singular" is needed to prevent single-segment slides from being parsed as piecewise.
+	// Single-segment slides are parsed as piecewise, but should be mapped to amortized.
 
 	let star_styles = make_styles!(StarStyle, "bx@?!");
 	let slide_styles = make_styles!(SlideStyle, "b");
@@ -112,29 +111,18 @@ pub fn simai<'a>() -> impl Parser<'a, &'a str, Vec<Item>, Err<Rich<'a, char>>> {
 	let slide_ext = shape.clone().then(key.clone());
 	let slide_ext_styled = group((shape.clone(), key.clone(), slide_styles));
 
-	let slide_track_singular = group((slide_ext_styled.clone(), wait_any.clone(), slide_styles)).map(
-		|((shape, key, s1), (wait, len), s2)| SlideTrack::Amortized {
-			path: vec![(shape, key)],
-			wait,
-			style: s1 | s2,
-			len,
-		},
-	);
-	let slide_track_amortized = group((
-		slide_ext.clone().repeated().at_least(1).collect::<Vec<_>>(),
-		slide_styles,
-		wait_any.clone(),
-		slide_styles,
-	))
-	.map(|(path, s1, (wait, len), s2)| SlideTrack::Amortized { path, wait, style: s1 | s2, len });
 	let slide_track_piecewise = group((
 		slide_ext.clone(),
 		wait_any.clone(),
-		slide_ext.then(len.clone()).map(|((a, b), c)| (a, b, c)).repeated().collect::<Vec<_>>(),
+		slide_ext.clone().then(len.clone()).map(|((a, b), c)| (a, b, c)).repeated().collect::<Vec<_>>(),
 		slide_ext_styled.then(len).or_not(),
 		slide_styles,
 	))
 	.map(|((shape, key), (wait, len), middle, last, mut style)| {
+		if middle.is_empty() && last.is_none() {
+			return SlideTrack::Amortized { path: vec![(shape, key)], wait, style, len };
+		}
+
 		let mut path = vec![(shape, key, len)];
 		path.extend(middle);
 		if let Some(((shape, key, s), len)) = last {
@@ -143,8 +131,16 @@ pub fn simai<'a>() -> impl Parser<'a, &'a str, Vec<Item>, Err<Rich<'a, char>>> {
 		}
 		SlideTrack::Piecewise { path, wait, style }
 	});
-	let slide_track =
-		choice((slide_track_singular, slide_track_piecewise, slide_track_amortized)).boxed();
+
+	let slide_track_amortized = group((
+		slide_ext.repeated().at_least(1).collect::<Vec<_>>(),
+		slide_styles,
+		wait_any,
+		slide_styles,
+	))
+	.map(|(path, s1, (wait, len), s2)| SlideTrack::Amortized { path, wait, style: s1 | s2, len });
+
+	let slide_track = choice((slide_track_piecewise, slide_track_amortized)).boxed();
 
 	let slide = (key.clone())
 		.then(star_styles)
