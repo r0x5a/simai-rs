@@ -12,19 +12,19 @@ pub const SUDDEN: S = 32;
 pub const REMOVE: S = 64;
 
 bitflags::bitflags! {
-	#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+	#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
 	pub struct TapStyle: S { const _ = BREAK | EX | NAKED_STAR; }
 
-	#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+	#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
 	pub struct HoldStyle: S { const _ = BREAK | EX; }
 
-	#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+	#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
 	pub struct StarStyle: S { const _ = BREAK | EX | TAP_STAR | REMOVE | SUDDEN; }
 
-	#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+	#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
 	pub struct SlideStyle: S { const _ = BREAK; }
 
-	#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+	#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
 	pub struct TouchStyle: S { const _ = FIREWORK; }
 }
 

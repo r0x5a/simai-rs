@@ -133,11 +133,11 @@ pub struct TouchHold {
 pub struct Slide {
 	pub key: Key,
 	pub star_style: StarStyle,
-	pub tracks: Vec<(SlideTrack, SlideStyle)>,
+	pub tracks: Vec<SlideTrack>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum SlideTrack {
-	Amortized { path: Vec<(Shape, Key)>, wait: Wait, len: Len },
-	Piecewise { path: Vec<(Shape, Key, Len)>, wait: Wait },
+	Amortized { path: Vec<(Shape, Key)>, wait: Wait, style: SlideStyle, len: Len },
+	Piecewise { path: Vec<(Shape, Key, Len)>, wait: Wait, style: SlideStyle },
 }

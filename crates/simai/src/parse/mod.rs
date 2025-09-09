@@ -9,6 +9,7 @@ macro_rules! make_styles {
 }
 
 // TODO: also return a lenient parser
+// comments are not handled here. use a preprocessor to remove comments
 pub fn simai<'a>() -> impl Parser<'a, &'a str, Vec<Item>> {
 	let sym = |c| just(c).padded();
 	let sym2 = |c| just(c).padded();
@@ -50,7 +51,8 @@ pub fn simai<'a>() -> impl Parser<'a, &'a str, Vec<Item>> {
 	let len_bpm = float.then_ignore(sym('#')).then(frac).map(|(bpm, frac)| Len::Bpm { bpm, frac });
 	let len = choice((sym('#').ignore_then(len_abs), len_rel, len_bpm))
 		.delimited_by(sym('['), sym(']'))
-		.or(text::whitespace().to(Len::Zero)).boxed();
+		.boxed();
+	let len_or_zero = len.clone().or(text::whitespace().to(Len::Zero));
 
 	// hold and touch hold
 	let hold_styles = make_styles!(HoldStyle, "bx");
@@ -58,7 +60,7 @@ pub fn simai<'a>() -> impl Parser<'a, &'a str, Vec<Item>> {
 		.then(hold_styles)
 		.then_ignore(sym('h'))
 		.then(hold_styles)
-		.then(len.clone())
+		.then(len_or_zero.clone())
 		.then(hold_styles)
 		.map(|((((key, s1), s2), len), s3)| Item::Hold(Hold { key, len, style: s1 | s2 | s3 }));
 
@@ -66,7 +68,7 @@ pub fn simai<'a>() -> impl Parser<'a, &'a str, Vec<Item>> {
 		.then(touch_styles)
 		.then_ignore(sym('h'))
 		.then(touch_styles)
-		.then(len.clone())
+		.then(len_or_zero.clone())
 		.then(touch_styles)
 		.map(|((((sensor, s1), s2), len), s3)| {
 			Item::TouchHold(TouchHold { sensor, len, style: s1 | s2 | s3 })
@@ -96,29 +98,57 @@ pub fn simai<'a>() -> impl Parser<'a, &'a str, Vec<Item>> {
 	// slide:
 	// - amortized: A-B-C-D(style?)[any wait]
 	// - piecewise: A-B[any wait]-C[hold len]-D(style?)[hold len]
-	// piecewise is considered pathological, so A-B[wait] is recognized as amortized, thus amortized is parsed first
-
-	let slide_ext = shape.clone().then(key.clone());
-	let slide_track_amortized = (slide_ext.clone().repeated().at_least(1).collect())
-		.then(wait_any)
-		.map(|(path, (wait, len))| SlideTrack::Amortized { path, wait, len });
-	let slide_track_piecewise = (slide_ext.clone())
-		.then(wait_any)
-		.then(
-			slide_ext.then(len).map(|((a, b), c)| (a, b, c)).repeated().at_least(1).collect::<Vec<_>>(),
-		)
-		.map(|(((shape, key), (wait, len)), track_rest)| {
-			let mut path = vec![(shape, key, len)];
-			path.extend(track_rest);
-			SlideTrack::Piecewise { path, wait }
-		});
-	let slide_track = choice((slide_track_amortized, slide_track_piecewise)).boxed();
+	//
+	// the actual parsing logic (prio from top to bottom):
+	// - singular:		slide_ext_styled wait_any style?
+	// - piecewise:		slide_ext wait_any (slide_ext len)* (slide_ext_styled len)? style?
+	// - amortized:		slide_ext+ style? wait_any style?
+	// These parsing logic avoided the '*' and '+' operators early consuming too much input.
+	// "singular" is needed to prevent single-segment slides from being parsed as piecewise.
 
 	let star_styles = make_styles!(StarStyle, "bx@?!");
 	let slide_styles = make_styles!(SlideStyle, "b");
+
+	let slide_ext = shape.clone().then(key.clone());
+	let slide_ext_styled = group((shape.clone(), key.clone(), slide_styles));
+
+	let slide_track_singular = group((slide_ext_styled.clone(), wait_any, slide_styles)).map(
+		|((shape, key, s1), (wait, len), s2)| SlideTrack::Amortized {
+			path: vec![(shape, key)],
+			wait,
+			style: s1 | s2,
+			len,
+		},
+	);
+	let slide_track_amortized = group((
+		slide_ext.clone().repeated().at_least(1).collect::<Vec<_>>(),
+		slide_styles,
+		wait_any,
+		slide_styles,
+	))
+	.map(|(path, s1, (wait, len), s2)| SlideTrack::Amortized { path, wait, style: s1 | s2, len });
+	let slide_track_piecewise = group((
+		slide_ext.clone(),
+		wait_any,
+		slide_ext.then(len.clone()).map(|((a, b), c)| (a, b, c)).repeated().collect::<Vec<_>>(),
+		slide_ext_styled.then(len).or_not(),
+		slide_styles,
+	))
+	.map(|((shape, key), (wait, len), middle, last, mut style)| {
+		let mut path = vec![(shape, key, len)];
+		path.extend(middle);
+		if let Some(((shape, key, s), len)) = last {
+			path.push((shape, key, len));
+			style |= s;
+		}
+		SlideTrack::Piecewise { path, wait, style }
+	});
+	let slide_track =
+		choice((slide_track_singular, slide_track_piecewise, slide_track_amortized)).boxed();
+
 	let slide = (key.clone())
 		.then(star_styles)
-		.then(slide_track.then(slide_styles).separated_by(sym('*')).at_least(1).collect())
+		.then(slide_track.separated_by(sym('*')).at_least(1).collect())
 		.map(|((key, star_style), tracks)| Item::Slide(Slide { key, star_style, tracks }));
 
 	// prefix items (bpm, div, div abs)
@@ -127,13 +157,8 @@ pub fn simai<'a>() -> impl Parser<'a, &'a str, Vec<Item>> {
 	let div_abs =
 		float.delimited_by(sym('{').then(sym('#')), sym('}')).map(|n| Item::DivAbs(DivAbs(n)));
 
-	// suffix items (comment and end)
-	let comment = sym2("||")
-		.ignore_then(none_of("\r\n").repeated().at_least(0).collect::<String>())
-		.map(Item::Comment);
-	let comments = comment.repeated().at_least(1).collect();
+	// end mark
 	let end = sym('E').to(Item::End);
-	let suf_items = choice((end.map(I::Item), comments.map(I::Items)));
 
 	// tap group
 	#[derive(Clone)]
@@ -156,7 +181,7 @@ pub fn simai<'a>() -> impl Parser<'a, &'a str, Vec<Item>> {
 		.collect::<Vec<_>>();
 
 	// note item
-	// prio: hold > tap group > tap
+	// prio: hold > tap group > slide > tap
 	let note_item = choice((
 		choice((hold, touch_hold)).map(I::Item),
 		tap_group.map(I::Items),
@@ -164,14 +189,16 @@ pub fn simai<'a>() -> impl Parser<'a, &'a str, Vec<Item>> {
 		choice((tap, touch_tap)).map(I::Item),
 	));
 	let first_note_item = note_item.clone().map(Vec::from);
-	let note_items =
+	let note_items = choice((
 		first_note_item.foldl(sym('/').ignore_then(note_item).repeated(), |mut acc, item| {
 			match item {
 				I::Item(it) => acc.push(it),
 				I::Items(its) => acc.extend(its),
 			}
 			acc
-		});
+		}),
+		end.to(vec![Item::End]),
+	));
 
 	let pre_items = choice((
 		bpm.then(div).map(|(b, d)| I::Items(vec![b, d])),
@@ -179,21 +206,13 @@ pub fn simai<'a>() -> impl Parser<'a, &'a str, Vec<Item>> {
 		div.map(I::Item),
 		div_abs.map(I::Item),
 	));
-	let note_items = pre_items.or_not().then(note_items.or_not()).then(suf_items.or_not()).map(
-		|((pre, notes), suf)| {
-			let mut v = pre.map(Vec::from).unwrap_or_default();
-			if let Some(notes) = notes {
-				v.extend(notes);
-			}
-			if let Some(suf) = suf {
-				match suf {
-					I::Item(it) => v.push(it),
-					I::Items(its) => v.extend(its),
-				}
-			}
-			v
-		},
-	);
+	let main_items = pre_items.or_not().then(note_items.clone().or_not()).map(|(pre, notes)| {
+		let mut v = pre.map(Vec::from).unwrap_or_default();
+		if let Some(notes) = notes {
+			v.extend(notes);
+		}
+		v
+	});
 
 	// misc
 	let tick = sym(',').repeated().at_least(1).count().map(|v| Item::Tick(Tick(v as u32)));
@@ -203,18 +222,15 @@ pub fn simai<'a>() -> impl Parser<'a, &'a str, Vec<Item>> {
 	let tick_item = choice((tick, pseudo_tick));
 
 	// full parser
-	let comments_or_not = comment.repeated().at_least(0).collect::<Vec<_>>();
-	let header = comments_or_not.then(pre_items).then(comments_or_not).map(|((a, b), c)| {
-		let mut v = a;
-		match b {
-			I::Item(it) => v.push(it),
-			I::Items(its) => v.extend(its),
+	let header = pre_items.then(note_items.or_not()).map(|(pre, notes)| {
+		let mut v: Vec<_> = pre.into();
+		if let Some(notes) = notes {
+			v.extend(notes);
 		}
-		v.extend(c);
 		v
 	});
 
-	header.foldl(tick_item.then(note_items).repeated(), |mut acc, (t, mut notes)| {
+	header.foldl(tick_item.then(main_items).repeated(), |mut acc, (t, mut notes)| {
 		acc.push(t);
 		acc.append(&mut notes);
 		acc
