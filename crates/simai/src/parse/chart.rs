@@ -15,16 +15,17 @@ pub fn simai<'a>() -> impl Parser<'a, &'a str, Vec<Item>, Err<Rich<'a, char>>> {
 	let sym2 = |c| just(c).padded();
 
 	// common parsers
-	let digits = text::digits(10);
-	let int = digits.to_slice().map(|s: &str| s.parse::<u32>().unwrap()).padded();
+	let digits = text::digits(10).labelled("digits");
+	let int = digits.to_slice().map(|s: &str| s.parse::<u32>().unwrap()).padded().labelled("int");
 	let float = digits
 		.then(sym('.').ignore_then(digits.or_not()).or_not())
 		.to_slice()
 		.map(|s: &str| s.replace(' ', "").parse::<f64>().unwrap())
-		.padded();
+		.padded()
+		.labelled("float");
 
 	// key and sensor
-	let key = one_of('1'..='8').map(|c: char| c.into()).padded();
+	let key = one_of('1'..='8').map(|c: char| c.into()).padded().labelled("key");
 	let sensor = choice((
 		one_of("ABDE")
 			.then(key.clone())
@@ -33,7 +34,8 @@ pub fn simai<'a>() -> impl Parser<'a, &'a str, Vec<Item>, Err<Rich<'a, char>>> {
 			.ignore_then(one_of("12").or_not())
 			.map(|i| Sensor { group: SensorGroup::C, index: i.map(Key::from) }),
 	))
-	.padded();
+	.padded()
+	.labelled("sensor");
 
 	// tap and touch tap
 	let tap_styles = make_styles!(TapStyle, "bx$");
@@ -52,7 +54,7 @@ pub fn simai<'a>() -> impl Parser<'a, &'a str, Vec<Item>, Err<Rich<'a, char>>> {
 	let len = choice((sym('#').ignore_then(len_abs), len_rel, len_bpm))
 		.delimited_by(sym('['), sym(']'))
 		.boxed();
-	let len_or_zero = len.clone().or(text::whitespace().to(Len::Zero));
+	let len_or_zero = len.clone().or(empty().to(Len::Zero));
 
 	// hold and touch hold
 	let hold_styles = make_styles!(HoldStyle, "bx");
@@ -195,7 +197,8 @@ pub fn simai<'a>() -> impl Parser<'a, &'a str, Vec<Item>, Err<Rich<'a, char>>> {
 			acc
 		}),
 		end.to(vec![Item::End]),
-	));
+	))
+	.labelled("note");
 
 	let pre_items = choice((
 		bpm.then(div).map(|(b, d)| I::Items(vec![b, d])),
