@@ -1,3 +1,5 @@
+use chumsky::span::SimpleSpan;
+
 mod misc;
 mod note;
 mod style;
@@ -21,23 +23,8 @@ pub enum Item {
 	Tick(Tick),
 	PseudoTick(PseudoTick),
 
-	Comment(String),
+	Comment(String), // TODO: these are currently not parsed
 	End,
+
+	Error(SimpleSpan), // TODO
 }
-
-// 	Bpm(f64),
-// 	Div(u32),
-// 	DivAbs(f64),
-
-// 	Tap { key: Key, style: TapStyle },
-// 	Hold { key: Key, style: HoldStyle, len: Len },
-// 	TouchTap { key: Sensor, style: TouchStyle },
-// 	TouchHold { key: Sensor, style: TouchStyle, len: Len },
-// 	Slide { key: Key, star_style: StarStyle, style: SlideStyle, tracks: Vec<SlidePath> },
-
-// 	Tick(u32),
-// 	PseudoTick(u32),
-
-// 	Comment(String),
-// 	End,
-// }

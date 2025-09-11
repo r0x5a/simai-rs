@@ -95,7 +95,8 @@ pub fn simai<'a>() -> impl Parser<'a, &'a str, Vec<Item>, Err<Rich<'a, char>>> {
 		one_of("-<>^szvwpq").map(Shape::from),
 		sym('V').ignore_then(key.clone()).map(Shape::Angle),
 	))
-	.padded();
+	.padded()
+	.labelled("shape");
 
 	// slide:
 	// - amortized: A-B-C-D(style?)[any wait]
@@ -156,10 +157,10 @@ pub fn simai<'a>() -> impl Parser<'a, &'a str, Vec<Item>, Err<Rich<'a, char>>> {
 		float.delimited_by(sym('{').then(sym('#')), sym('}')).map(|n| Item::DivAbs(DivAbs(n)));
 
 	// end mark
-	let end = sym('E').to(Item::End);
+	let end_mark = sym('E').to(Item::End);
 
 	// tap group
-	#[derive(Clone)]
+	#[derive(Debug, Clone)]
 	enum I {
 		Item(Item),
 		Items(Vec<Item>),
@@ -188,17 +189,25 @@ pub fn simai<'a>() -> impl Parser<'a, &'a str, Vec<Item>, Err<Rich<'a, char>>> {
 	))
 	.boxed();
 	let first_note_item = note_item.clone().map(Vec::from);
+
+	let slash_recovery =
+		none_of(",`/").repeated().at_least(1).to_span().then_ignore(sym('/')).map(Some);
+	let slash = sym('/').to(None).recover_with(via_parser(slash_recovery));
+
 	let note_items = choice((
-		first_note_item.foldl(sym('/').ignore_then(note_item).repeated(), |mut acc, item| {
+		first_note_item.foldl(slash.then(note_item).repeated(), |mut acc, (slash, item)| {
+			if let Some(err) = slash {
+				acc.push(Item::Error(err));
+			}
 			match item {
 				I::Item(it) => acc.push(it),
 				I::Items(its) => acc.extend(its),
 			}
 			acc
 		}),
-		end.to(vec![Item::End]),
+		end_mark.to(vec![Item::End]),
 	))
-	.labelled("note");
+	.labelled("notes");
 
 	let pre_items = choice((
 		bpm.then(div).map(|(b, d)| I::Items(vec![b, d])),
@@ -222,6 +231,13 @@ pub fn simai<'a>() -> impl Parser<'a, &'a str, Vec<Item>, Err<Rich<'a, char>>> {
 		sym('`').repeated().at_least(1).count().map(|v| Item::PseudoTick(PseudoTick(v as u32)));
 
 	let tick_item = choice((tick, pseudo_tick));
+	let tick_recovery = (none_of(",`").repeated().at_least(1).to_span())
+		.then(tick_item.map(Some).or(end().to(None)))
+		.map(|(err, t)| match t {
+			Some(t) => I::Items(vec![Item::Error(err), t]),
+			None => I::Item(Item::Error(err)),
+		});
+	let tick_item = tick_item.map(I::Item).recover_with(via_parser(tick_recovery));
 
 	// full parser
 	let header = pre_items.then(note_items.or_not()).map(|(pre, notes)| {
@@ -233,7 +249,10 @@ pub fn simai<'a>() -> impl Parser<'a, &'a str, Vec<Item>, Err<Rich<'a, char>>> {
 	});
 
 	header.foldl(tick_item.then(main_items).repeated(), |mut acc, (t, mut notes)| {
-		acc.push(t);
+		match t {
+			I::Item(it) => acc.push(it),
+			I::Items(its) => acc.extend(its),
+		}
 		acc.append(&mut notes);
 		acc
 	})
