@@ -1,0 +1,300 @@
+---
+source: crates/simai/tests/integration.rs
+expression: output
+input_file: crates/simai/tests/fixtures/raw/ok/tap.txt
+---
+[
+    Bpm(
+        Bpm(
+            1.0,
+        ),
+    ),
+    Tap(
+        Tap {
+            key: K1,
+            style: TapStyle(
+                0x0,
+            ),
+        },
+    ),
+    Tick(
+        Tick(
+            1,
+        ),
+    ),
+    Tap(
+        Tap {
+            key: K2,
+            style: TapStyle(
+                0x0,
+            ),
+        },
+    ),
+    Tick(
+        Tick(
+            1,
+        ),
+    ),
+    Tap(
+        Tap {
+            key: K3,
+            style: TapStyle(
+                0x0,
+            ),
+        },
+    ),
+    Tick(
+        Tick(
+            1,
+        ),
+    ),
+    Tap(
+        Tap {
+            key: K4,
+            style: TapStyle(
+                0x0,
+            ),
+        },
+    ),
+    Tick(
+        Tick(
+            1,
+        ),
+    ),
+    Tap(
+        Tap {
+            key: K5,
+            style: TapStyle(
+                0x0,
+            ),
+        },
+    ),
+    Tick(
+        Tick(
+            1,
+        ),
+    ),
+    Tap(
+        Tap {
+            key: K6,
+            style: TapStyle(
+                0x0,
+            ),
+        },
+    ),
+    Tick(
+        Tick(
+            1,
+        ),
+    ),
+    Tap(
+        Tap {
+            key: K7,
+            style: TapStyle(
+                0x0,
+            ),
+        },
+    ),
+    Tick(
+        Tick(
+            1,
+        ),
+    ),
+    Tap(
+        Tap {
+            key: K8,
+            style: TapStyle(
+                0x0,
+            ),
+        },
+    ),
+    Tick(
+        Tick(
+            1,
+        ),
+    ),
+    Tap(
+        Tap {
+            key: K1,
+            style: TapStyle(
+                0x0,
+            ),
+        },
+    ),
+    Tap(
+        Tap {
+            key: K2,
+            style: TapStyle(
+                0x0,
+            ),
+        },
+    ),
+    Tick(
+        Tick(
+            1,
+        ),
+    ),
+    Tap(
+        Tap {
+            key: K1,
+            style: TapStyle(
+                0x0,
+            ),
+        },
+    ),
+    Tap(
+        Tap {
+            key: K2,
+            style: TapStyle(
+                0x0,
+            ),
+        },
+    ),
+    Tap(
+        Tap {
+            key: K3,
+            style: TapStyle(
+                0x0,
+            ),
+        },
+    ),
+    Tap(
+        Tap {
+            key: K4,
+            style: TapStyle(
+                0x0,
+            ),
+        },
+    ),
+    Tick(
+        Tick(
+            1,
+        ),
+    ),
+    Tap(
+        Tap {
+            key: K1,
+            style: TapStyle(
+                0x0,
+            ),
+        },
+    ),
+    Tap(
+        Tap {
+            key: K1,
+            style: TapStyle(
+                0x0,
+            ),
+        },
+    ),
+    Tick(
+        Tick(
+            1,
+        ),
+    ),
+    Tap(
+        Tap {
+            key: K1,
+            style: TapStyle(
+                0x0,
+            ),
+        },
+    ),
+    Tap(
+        Tap {
+            key: K1,
+            style: TapStyle(
+                0x0,
+            ),
+        },
+    ),
+    Tap(
+        Tap {
+            key: K4,
+            style: TapStyle(
+                0x0,
+            ),
+        },
+    ),
+    Tap(
+        Tap {
+            key: K5,
+            style: TapStyle(
+                0x0,
+            ),
+        },
+    ),
+    Tap(
+        Tap {
+            key: K1,
+            style: TapStyle(
+                0x0,
+            ),
+        },
+    ),
+    Tap(
+        Tap {
+            key: K4,
+            style: TapStyle(
+                0x0,
+            ),
+        },
+    ),
+    Tick(
+        Tick(
+            1,
+        ),
+    ),
+    Tap(
+        Tap {
+            key: K1,
+            style: TapStyle(
+                0x1,
+            ),
+        },
+    ),
+    Tick(
+        Tick(
+            1,
+        ),
+    ),
+    Tap(
+        Tap {
+            key: K2,
+            style: TapStyle(
+                0x2,
+            ),
+        },
+    ),
+    Tick(
+        Tick(
+            1,
+        ),
+    ),
+    Tap(
+        Tap {
+            key: K3,
+            style: TapStyle(
+                0x4,
+            ),
+        },
+    ),
+    Tick(
+        Tick(
+            1,
+        ),
+    ),
+    Tap(
+        Tap {
+            key: K4,
+            style: TapStyle(
+                0x7,
+            ),
+        },
+    ),
+    Tick(
+        Tick(
+            1,
+        ),
+    ),
+]

@@ -1,0 +1,37 @@
+---
+source: crates/simai/tests/integration.rs
+expression: output
+input_file: crates/simai/tests/fixtures/raw/ok/div.txt
+---
+[
+    Div(
+        Div(
+            13131,
+        ),
+    ),
+    Tick(
+        Tick(
+            1,
+        ),
+    ),
+    DivAbs(
+        DivAbs(
+            1.1,
+        ),
+    ),
+    Tick(
+        Tick(
+            1,
+        ),
+    ),
+    DivAbs(
+        DivAbs(
+            1.0,
+        ),
+    ),
+    Tick(
+        Tick(
+            1,
+        ),
+    ),
+]
