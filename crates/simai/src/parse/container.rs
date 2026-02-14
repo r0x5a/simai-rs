@@ -1,17 +1,21 @@
 use std::{collections::HashMap, str::FromStr};
 
+use chumsky::error::Rich;
+
 use crate::def::Item;
+
+type ParseResult = (Option<Vec<Item>>, Vec<Rich<'static, char>>);
 
 #[derive(Debug, Clone, Default)]
 pub struct Simai {
-	title: Option<String>,
-	artist: Option<String>,
-	first: Option<f64>,
-	rest_cmds: HashMap<String, String>,
+	pub title: Option<String>,
+	pub artist: Option<String>,
+	pub first: Option<f64>,
+	pub rest_cmds: HashMap<String, String>,
 
-	designer: [Option<String>; 8],
-	level: [Option<String>; 8],
-	chart: [Option<Vec<Item>>; 8],
+	pub designer: [Option<String>; 8],
+	pub level: [Option<String>; 8],
+	pub chart: [Option<ParseResult>; 8],
 }
 
 impl Simai {
@@ -35,13 +39,17 @@ impl Simai {
 						return;
 					}
 					concat!("inote_", stringify!($i)) => {
-						println!("Parsing inote_{}", $i);
 						let s = value.trim();
 						if s.is_empty() {
 							return;
 						}
+
 						let s = crate::parse::chart::rm_comments(&s);
-						self.chart[$i] = Some(crate::parse::chart::simai().parse(&s).unwrap()); // TODO: error handling
+						let result = crate::parse::chart::simai().parse(&s);
+						let output = result.output();
+						let errors = result.errors().map(|x| x.clone().into_owned()).collect::<Vec<_>>();
+
+						self.chart[$i] = Some((output.cloned(), errors));
 						return;
 					}
 					_ => {}
