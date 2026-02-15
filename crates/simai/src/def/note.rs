@@ -1,8 +1,11 @@
+use std::fmt::Display;
+
 use fraction::BigFraction;
+use serde::{Deserialize, Serialize};
 
 use crate::def::{HoldStyle, SlideStyle, StarStyle, TapStyle, TouchStyle};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[rustfmt::skip]
 pub enum Key { K1 = 1, K2, K3, K4, K5, K6, K7, K8 }
 
@@ -22,7 +25,7 @@ impl From<char> for Key {
 	}
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[rustfmt::skip]
 pub enum SensorGroup { A, B, C, D, E }
 
@@ -41,7 +44,7 @@ impl From<char> for SensorGroup {
 
 pub type Frac = BigFraction;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Len {
 	Rel(Frac),
 	Bpm { bpm: f64, frac: Frac },
@@ -55,14 +58,14 @@ impl Len {
 	}
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Wait {
 	Rel,
 	Bpm(f64),
 	Abs(f64),
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Shape {
 	Line,
 	ArcLeft,
@@ -97,46 +100,66 @@ impl From<char> for Shape {
 	}
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+impl Display for Shape {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		match self {
+			Shape::Line => write!(f, "-"),
+			Shape::ArcLeft => write!(f, "<"),
+			Shape::ArcRight => write!(f, ">"),
+			Shape::Arc => write!(f, "^"),
+			Shape::P => write!(f, "p"),
+			Shape::Q => write!(f, "q"),
+			Shape::S => write!(f, "s"),
+			Shape::Z => write!(f, "z"),
+			Shape::PP => write!(f, "pp"),
+			Shape::QQ => write!(f, "qq"),
+			Shape::V => write!(f, "v"),
+			Shape::Fan => write!(f, "w"),
+			Shape::Angle(k) => write!(f, "V{}", *k as u8),
+		}
+	}
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct Sensor {
 	pub group: SensorGroup,
 	pub index: Option<Key>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Tap {
 	pub key: Key,
 	pub style: TapStyle,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Hold {
 	pub key: Key,
 	pub len: Len,
 	pub style: HoldStyle,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct TouchTap {
 	pub sensor: Sensor,
 	pub style: TouchStyle,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct TouchHold {
 	pub sensor: Sensor,
 	pub len: Len,
 	pub style: TouchStyle,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Slide {
 	pub key: Key,
 	pub star_style: StarStyle,
 	pub tracks: Vec<SlideTrack>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum SlideTrack {
 	Amortized { path: Vec<(Shape, Key)>, wait: Wait, style: SlideStyle, len: Len },
 	Piecewise { path: Vec<(Shape, Key, Len)>, wait: Wait, style: SlideStyle },

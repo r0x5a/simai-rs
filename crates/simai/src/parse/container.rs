@@ -1,6 +1,6 @@
 use std::{collections::HashMap, str::FromStr};
 
-use chumsky::error::Rich;
+use chumsky::{Parser, error::Rich};
 
 use crate::def::Item;
 
@@ -23,12 +23,20 @@ impl Simai {
 		Default::default()
 	}
 
+	pub fn parse_chart(chart: &str) -> ParseResult {
+		let s = crate::parse::chart::rm_comments(chart);
+		let result = crate::parse::chart::simai().parse(&s);
+		let output = result.output();
+		let errors = result.errors().map(|x| x.clone().into_owned()).collect::<Vec<_>>();
+
+		(output.cloned(), errors)
+	}
+
 	fn append_cmd(&mut self, cmd: String, value: String) {
 		let s = cmd.as_str();
 
 		macro_rules! parse_diff {
 			($i:expr) => {{
-				use chumsky::Parser;
 				match s {
 					concat!("des_", stringify!($i)) => {
 						self.designer[$i] = Some(value);
@@ -43,13 +51,7 @@ impl Simai {
 						if s.is_empty() {
 							return;
 						}
-
-						let s = crate::parse::chart::rm_comments(&s);
-						let result = crate::parse::chart::simai().parse(&s);
-						let output = result.output();
-						let errors = result.errors().map(|x| x.clone().into_owned()).collect::<Vec<_>>();
-
-						self.chart[$i] = Some((output.cloned(), errors));
+						self.chart[$i] = Some(Self::parse_chart(s));
 						return;
 					}
 					_ => {}
