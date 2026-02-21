@@ -1,4 +1,4 @@
-use std::{collections::HashMap, str::FromStr};
+use std::{collections::HashMap, convert::Infallible, str::FromStr};
 
 use chumsky::{Parser, error::Rich};
 
@@ -89,7 +89,7 @@ impl Simai {
 }
 
 impl FromStr for Simai {
-	type Err = ();
+	type Err = Infallible;
 
 	fn from_str(s: &str) -> Result<Self, Self::Err> {
 		let mut simai = Simai::new();

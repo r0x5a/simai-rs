@@ -1,6 +1,6 @@
 use std::fmt::Display;
 
-use fraction::BigFraction;
+use fraction::{BigFraction, ToPrimitive};
 use serde::{Deserialize, Serialize};
 
 use crate::def::{HoldStyle, SlideStyle, StarStyle, TapStyle, TouchStyle};
@@ -42,6 +42,30 @@ impl From<char> for SensorGroup {
 	}
 }
 
+impl Display for SensorGroup {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		match self {
+			SensorGroup::A => write!(f, "A"),
+			SensorGroup::B => write!(f, "B"),
+			SensorGroup::C => write!(f, "C"),
+			SensorGroup::D => write!(f, "D"),
+			SensorGroup::E => write!(f, "E"),
+		}
+	}
+}
+
+impl From<SensorGroup> for char {
+	fn from(val: SensorGroup) -> Self {
+		match val {
+			SensorGroup::A => 'A',
+			SensorGroup::B => 'B',
+			SensorGroup::C => 'C',
+			SensorGroup::D => 'D',
+			SensorGroup::E => 'E',
+		}
+	}
+}
+
 pub type Frac = BigFraction;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -56,6 +80,15 @@ impl Len {
 	pub fn bpm(bpm: f64, p: u32, q: u32) -> Self {
 		Len::Bpm { bpm, frac: Frac::new(q, p) }
 	}
+
+	pub fn to_abs(&self, bpm: f64) -> Option<f64> {
+		Some(match self {
+			Len::Rel(frac) => frac.to_f64()? * 240.0 / bpm,
+			Len::Bpm { bpm, frac } => frac.to_f64()? * 240.0 / bpm,
+			Len::Abs(abs) => *abs,
+			Len::Zero => 0.,
+		})
+	}
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -63,6 +96,16 @@ pub enum Wait {
 	Rel,
 	Bpm(f64),
 	Abs(f64),
+}
+
+impl Wait {
+	pub fn to_abs(&self, bpm: f64) -> Option<f64> {
+		Some(match self {
+			Wait::Rel => 60.0 / bpm,
+			Wait::Bpm(bpm) => 60.0 / *bpm,
+			Wait::Abs(abs) => *abs,
+		})
+	}
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
