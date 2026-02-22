@@ -2,9 +2,28 @@ use chumsky::{extra::Err, prelude::*};
 
 use crate::def::*;
 
+static CHAR_LIST: &str = "12345678ABCDE-<>^szvwpqV/,`[]*h{}()E \t\n\r";
+
 macro_rules! make_styles {
 	($t:ty, $s:expr) => {
-		one_of($s).map(to_style).padded().repeated().collect().map(|v: Vec<_>| merge::<$t>(&v))
+		choice((
+			one_of($s).map(|c| Some(to_style(c))),
+			none_of::<_, _, Err<Rich<char>>>(CHAR_LIST).validate(|c, e, emitter| {
+				emitter.emit(Rich::custom(
+					e.span(),
+					format!("Invalid style modifier '{}' for {}", c, stringify!($t)),
+				));
+				None
+			}),
+		))
+		.padded()
+		.repeated()
+		.collect::<Vec<_>>()
+		.map(|v| {
+			let valid_styles: Vec<_> = v.into_iter().flatten().collect();
+			merge::<$t>(&valid_styles)
+		})
+		.labelled(stringify!($t))
 	};
 }
 
