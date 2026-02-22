@@ -78,7 +78,7 @@ pub fn simai<'a>() -> impl Parser<'a, &'a str, Vec<Spanned<Item>>, Err<Rich<'a, 
 	let len_abs = float.map(Len::Abs);
 	let len_rel = frac.map(Len::Rel);
 	let len_bpm = float.then_ignore(sym('#')).then(frac).map(|(bpm, frac)| Len::Bpm { bpm, frac });
-	let len = choice((sym('#').ignore_then(len_abs), len_rel, len_bpm))
+	let len = choice((sym('#').ignore_then(len_abs), len_bpm, len_rel))
 		.delimited_by(sym('['), sym(']'))
 		.boxed();
 	let len_or_zero = len.clone().or(empty().to(Len::Zero));
@@ -108,16 +108,24 @@ pub fn simai<'a>() -> impl Parser<'a, &'a str, Vec<Spanned<Item>>, Err<Rich<'a, 
 		.boxed();
 
 	// slide wait
+	enum F {
+		Frac(Frac),
+		Float(f64),
+	}
+
 	let wait_rel = len_rel.map(|f| (Wait::Rel, f));
 	let wait_bpm = float
 		.then_ignore(sym('#'))
-		.then(choice((len_rel, len_abs)))
-		.map(|(bpm, len)| (Wait::Bpm(bpm), len));
+		.then(choice((frac.map(F::Frac), float.map(F::Float))))
+		.map(|(bpm, len)| (Wait::Bpm(bpm), match len {
+			F::Frac(frac) => Len::Bpm { bpm, frac },
+			F::Float(f) => Len::Abs(f),
+		}));
 	let wait_abs = float
 		.then_ignore(sym2("##"))
-		.then(choice((len_rel, len_abs, len_bpm)))
+		.then(choice((len_bpm, len_rel, len_abs)))
 		.map(|(time, len)| (Wait::Abs(time), len));
-	let wait_any = choice((wait_rel, wait_bpm, wait_abs)).delimited_by(sym('['), sym(']')).boxed();
+	let wait_any = choice((wait_abs, wait_bpm, wait_rel)).delimited_by(sym('['), sym(']')).boxed();
 
 	// shape
 	let shape = choice((
