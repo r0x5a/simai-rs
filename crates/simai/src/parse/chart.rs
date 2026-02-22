@@ -230,6 +230,7 @@ pub fn simai<'a>() -> impl Parser<'a, &'a str, Vec<Item>, Err<Rich<'a, char>>> {
 
 	let pre_items = choice((
 		bpm.then(div).map(|(b, d)| I::Items(vec![b, d])),
+		div.then(bpm).map(|(d, b)| I::Items(vec![b, d])),
 		bpm.map(I::Item),
 		div.map(I::Item),
 		div_abs.map(I::Item),
