@@ -4,8 +4,6 @@ use chumsky::{Parser, error::Rich};
 
 use crate::def::Item;
 
-type ParseResult = (Option<Vec<Item>>, Vec<Rich<'static, char>>);
-
 #[derive(Debug, Clone, Default)]
 pub struct Simai {
 	pub title: Option<String>,
@@ -15,21 +13,32 @@ pub struct Simai {
 
 	pub designer: [Option<String>; 8],
 	pub level: [Option<String>; 8],
-	pub chart: [Option<ParseResult>; 8],
+	pub chart: [Option<Chart>; 8],
+}
+
+#[derive(Debug, Clone)]
+pub struct Chart {
+	pub notes: Option<Vec<Item>>,
+	pub errors: Vec<Rich<'static, char>>,
+	pub raw: String,
+}
+
+impl FromStr for Chart {
+	type Err = Infallible;
+
+	fn from_str(raw: &str) -> Result<Self, Self::Err> {
+		let (stripped, _) = process_comments(raw);
+		let result = crate::parse::chart::simai().parse(&stripped);
+		let output = result.output().cloned();
+		let errors = result.errors().cloned().map(|x| x.into_owned()).collect::<Vec<_>>();
+
+		Ok(Chart { notes: output, errors, raw: stripped })
+	}
 }
 
 impl Simai {
 	pub fn new() -> Self {
 		Default::default()
-	}
-
-	pub fn parse_chart(chart: &str) -> ParseResult {
-		let s = crate::parse::chart::rm_comments(chart);
-		let result = crate::parse::chart::simai().parse(&s);
-		let output = result.output();
-		let errors = result.errors().map(|x| x.clone().into_owned()).collect::<Vec<_>>();
-
-		(output.cloned(), errors)
 	}
 
 	fn append_cmd(&mut self, cmd: String, value: String) {
@@ -51,7 +60,7 @@ impl Simai {
 						if s.is_empty() {
 							return;
 						}
-						self.chart[$i] = Some(Self::parse_chart(s));
+						self.chart[$i] = Some(s.parse().unwrap());
 						return;
 					}
 					_ => {}
@@ -116,5 +125,43 @@ impl FromStr for Simai {
 		}
 
 		Ok(simai)
+	}
+}
+
+pub fn process_comments(input: &str) -> (String, Vec<&str>) {
+	let mut stripped = String::with_capacity(input.len());
+	let mut comments = Vec::new();
+	let mut cur = 0;
+
+	while let Some(offset) = input[cur..].find("||") {
+		let start = cur + offset;
+		stripped.push_str(&input[cur..start]);
+
+		let suffix = &input[(start + 2)..];
+		let len = suffix.find(['\n', '\r']).unwrap_or(suffix.len()) + 2;
+
+		let end = start + len;
+		comments.push(&input[(start + 2)..end]);
+		stripped.push_str(&" ".repeat(len));
+		cur = end;
+	}
+
+	stripped.push_str(&input[cur..]);
+	(stripped, comments)
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[test]
+	fn test_process_comments() {
+		let input = "This is a test.||This is a comment.\r\nThis is another line.||Another comment.\nShould work for all line endings.||and comments at the end.";
+		let (replaced, comments) = process_comments(input);
+		assert_eq!(
+			replaced,
+			"This is a test.                    \r\nThis is another line.                  \nShould work for all line endings.                          "
+		);
+		assert_eq!(comments, vec!["This is a comment.", "Another comment.", "and comments at the end."]);
 	}
 }

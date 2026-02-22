@@ -277,10 +277,3 @@ pub fn simai<'a>() -> impl Parser<'a, &'a str, Vec<Item>, Err<Rich<'a, char>>> {
 		acc
 	})
 }
-
-pub fn rm_comments(s: &str) -> String {
-	s.lines()
-		.map(|line| if let Some(pos) = line.find("||") { &line[..pos] } else { line })
-		.collect::<Vec<_>>()
-		.join("\n")
-}
