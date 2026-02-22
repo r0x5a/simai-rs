@@ -1,5 +1,3 @@
-use chumsky::span::SimpleSpan;
-
 mod misc;
 mod note;
 mod style;
@@ -23,8 +21,7 @@ pub enum Item {
 	Tick(Tick),
 	PseudoTick(PseudoTick),
 
-	Comment(String), // TODO: these are currently not parsed
 	End,
 
-	Error(SimpleSpan), // TODO
+	Error,
 }

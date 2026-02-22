@@ -1,4 +1,4 @@
-use chumsky::{extra::Err, prelude::*};
+use chumsky::{extra::Err, prelude::*, span::WrappingSpan};
 
 use crate::def::*;
 
@@ -29,7 +29,7 @@ macro_rules! make_styles {
 
 // TODO: also return a lenient parser
 // comments are not handled here. use a preprocessor to remove comments
-pub fn simai<'a>() -> impl Parser<'a, &'a str, Vec<Item>, Err<Rich<'a, char>>> {
+pub fn simai<'a>() -> impl Parser<'a, &'a str, Vec<Spanned<Item>>, Err<Rich<'a, char>>> {
 	let sym = |c| just(c).padded();
 	let sym2 = |c| just(c).padded();
 
@@ -54,16 +54,24 @@ pub fn simai<'a>() -> impl Parser<'a, &'a str, Vec<Item>, Err<Rich<'a, char>>> {
 			.map(|i| Sensor { group: SensorGroup::C, index: i.map(Key::from) }),
 	))
 	.padded()
-	.labelled("sensor");
+	.labelled("sensor")
+	.boxed();
 
 	// tap and touch tap
 	let tap_styles = make_styles!(TapStyle, "bx$");
-	let tap = key.clone().then(tap_styles).map(|(key, style)| Item::Tap(Tap { key, style }));
+	let tap = key
+		.clone()
+		.then(tap_styles)
+		.map(|(key, style)| Item::Tap(Tap { key, style }))
+		.spanned()
+		.boxed();
 
 	let touch_styles = make_styles!(TouchStyle, "f");
 	let touch_tap = (sensor.clone())
 		.then(touch_styles)
-		.map(|(sensor, style)| Item::TouchTap(TouchTap { sensor, style }));
+		.map(|(sensor, style)| Item::TouchTap(TouchTap { sensor, style }))
+		.spanned()
+		.boxed();
 
 	// len
 	let frac = int.then_ignore(sym(':')).then(int).map(|(p, q)| Frac::new(q, p));
@@ -83,7 +91,9 @@ pub fn simai<'a>() -> impl Parser<'a, &'a str, Vec<Item>, Err<Rich<'a, char>>> {
 		.then(hold_styles)
 		.then(len_or_zero.clone())
 		.then(hold_styles)
-		.map(|((((key, s1), s2), len), s3)| Item::Hold(Hold { key, len, style: s1 | s2 | s3 }));
+		.map(|((((key, s1), s2), len), s3)| Item::Hold(Hold { key, len, style: s1 | s2 | s3 }))
+		.spanned()
+		.boxed();
 
 	let touch_hold = sensor
 		.then(touch_styles)
@@ -93,7 +103,9 @@ pub fn simai<'a>() -> impl Parser<'a, &'a str, Vec<Item>, Err<Rich<'a, char>>> {
 		.then(touch_styles)
 		.map(|((((sensor, s1), s2), len), s3)| {
 			Item::TouchHold(TouchHold { sensor, len, style: s1 | s2 | s3 })
-		});
+		})
+		.spanned()
+		.boxed();
 
 	// slide wait
 	let wait_rel = len_rel.map(|f| (Wait::Rel, f));
@@ -115,7 +127,8 @@ pub fn simai<'a>() -> impl Parser<'a, &'a str, Vec<Item>, Err<Rich<'a, char>>> {
 		sym('V').ignore_then(key.clone()).map(Shape::Angle),
 	))
 	.padded()
-	.labelled("shape");
+	.labelled("shape")
+	.boxed();
 
 	// slide:
 	// - amortized: A-B-C-D(style?)[any wait]
@@ -130,8 +143,8 @@ pub fn simai<'a>() -> impl Parser<'a, &'a str, Vec<Item>, Err<Rich<'a, char>>> {
 	let star_styles = make_styles!(StarStyle, "bx@?!");
 	let slide_styles = make_styles!(SlideStyle, "b");
 
-	let slide_ext = shape.clone().then(key.clone());
-	let slide_ext_styled = group((shape.clone(), key.clone(), slide_styles));
+	let slide_ext = shape.clone().then(key.clone()).boxed();
+	let slide_ext_styled = group((shape.clone(), key.clone(), slide_styles)).boxed();
 
 	let slide_track_piecewise = group((
 		slide_ext.clone(),
@@ -152,7 +165,8 @@ pub fn simai<'a>() -> impl Parser<'a, &'a str, Vec<Item>, Err<Rich<'a, char>>> {
 			style |= s;
 		}
 		SlideTrack::Piecewise { path, wait, style }
-	});
+	})
+	.boxed();
 
 	let slide_track_amortized = group((
 		slide_ext.repeated().at_least(1).collect::<Vec<_>>(),
@@ -167,24 +181,28 @@ pub fn simai<'a>() -> impl Parser<'a, &'a str, Vec<Item>, Err<Rich<'a, char>>> {
 	let slide = (key.clone())
 		.then(star_styles)
 		.then(slide_track.separated_by(sym('*')).at_least(1).collect())
-		.map(|((key, star_style), tracks)| Item::Slide(Slide { key, star_style, tracks }));
+		.map(|((key, star_style), tracks)| Item::Slide(Slide { key, star_style, tracks }))
+		.spanned()
+		.boxed();
 
 	// prefix items (bpm, div, div abs)
-	let bpm = float.delimited_by(sym('('), sym(')')).map(|n| Item::Bpm(Bpm(n)));
-	let div = int.delimited_by(sym('{'), sym('}')).map(|n| Item::Div(Div(n)));
-	let div_abs =
-		float.delimited_by(sym('{').then(sym('#')), sym('}')).map(|n| Item::DivAbs(DivAbs(n)));
+	let bpm = float.delimited_by(sym('('), sym(')')).map(|n| Item::Bpm(Bpm(n))).spanned();
+	let div = int.delimited_by(sym('{'), sym('}')).map(|n| Item::Div(Div(n))).spanned();
+	let div_abs = float
+		.delimited_by(sym('{').then(sym('#')), sym('}'))
+		.map(|n| Item::DivAbs(DivAbs(n)))
+		.spanned();
 
 	// end mark
-	let end_mark = sym('E').to(Item::End);
+	let end_mark = sym('E').to(Item::End).spanned();
 
 	// tap group
 	#[derive(Debug, Clone)]
 	enum I {
-		Item(Item),
-		Items(Vec<Item>),
+		Item(Spanned<Item>),
+		Items(Vec<Spanned<Item>>),
 	}
-	impl From<I> for Vec<Item> {
+	impl From<I> for Vec<Spanned<Item>> {
 		fn from(v: I) -> Self {
 			match v {
 				I::Item(it) => vec![it],
@@ -194,6 +212,7 @@ pub fn simai<'a>() -> impl Parser<'a, &'a str, Vec<Item>, Err<Rich<'a, char>>> {
 	}
 	let tap_group = key
 		.map(|key| Item::Tap(Tap { key, style: TapStyle::empty() }))
+		.spanned()
 		.repeated()
 		.at_least(2) // Cannot be 1, because that would be ambiguous with tap
 		.collect::<Vec<_>>();
@@ -210,23 +229,24 @@ pub fn simai<'a>() -> impl Parser<'a, &'a str, Vec<Item>, Err<Rich<'a, char>>> {
 	let first_note_item = note_item.clone().map(Vec::from);
 
 	let slash_recovery =
-		none_of(",`/").repeated().at_least(1).to_span().then_ignore(sym('/')).map(Some);
+		none_of(",`/").repeated().at_least(1).to_span().then_ignore(sym('/')).map(Some::<SimpleSpan>);
 	let slash = sym('/').to(None).recover_with(via_parser(slash_recovery));
 
-	let note_items = choice((
-		first_note_item.foldl(slash.then(note_item).repeated(), |mut acc, (slash, item)| {
+	let note_items_body = first_note_item
+		.foldl(slash.then(note_item).repeated(), |mut acc, (slash, item)| {
 			if let Some(err) = slash {
-				acc.push(Item::Error(err));
+				acc.push(err.make_wrapped(Item::Error));
 			}
 			match item {
 				I::Item(it) => acc.push(it),
 				I::Items(its) => acc.extend(its),
 			}
 			acc
-		}),
-		end_mark.to(vec![Item::End]),
-	))
-	.labelled("notes");
+		})
+		.boxed();
+
+	let note_items =
+		choice((note_items_body, end_mark.to(Item::End).spanned().map(|x| vec![x]))).labelled("notes");
 
 	let pre_items = choice((
 		bpm.then(div).map(|(b, d)| I::Items(vec![b, d])),
@@ -250,12 +270,12 @@ pub fn simai<'a>() -> impl Parser<'a, &'a str, Vec<Item>, Err<Rich<'a, char>>> {
 	let pseudo_tick =
 		sym('`').repeated().at_least(1).count().map(|v| Item::PseudoTick(PseudoTick(v as u32)));
 
-	let tick_item = choice((tick, pseudo_tick));
+	let tick_item = choice((tick, pseudo_tick)).spanned().boxed();
 	let tick_recovery = (none_of(",`").repeated().at_least(1).to_span())
-		.then(tick_item.map(Some).or(end().to(None)))
-		.map(|(err, t)| match t {
-			Some(t) => I::Items(vec![Item::Error(err), t]),
-			None => I::Item(Item::Error(err)),
+		.then(tick_item.clone().map(Some).or(end().to(None)))
+		.map(|(err, t): (SimpleSpan, _)| match t {
+			Some(t) => I::Items(vec![err.make_wrapped(Item::Error), t]),
+			None => I::Item(err.make_wrapped(Item::Error)),
 		});
 	let tick_item = tick_item.map(I::Item).recover_with(via_parser(tick_recovery));
 

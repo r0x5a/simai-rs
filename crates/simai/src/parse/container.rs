@@ -18,10 +18,12 @@ pub struct Simai {
 
 #[derive(Debug, Clone)]
 pub struct Chart {
-	pub notes: Option<Vec<Item>>,
+	pub notes: Option<Vec<Spanned<Item>>>,
 	pub errors: Vec<Rich<'static, char>>,
 	pub raw: String,
 }
+
+pub use chumsky::span::{SimpleSpan, Spanned, WrappingSpan};
 
 impl FromStr for Chart {
 	type Err = Infallible;
@@ -162,6 +164,9 @@ mod tests {
 			replaced,
 			"This is a test.                    \r\nThis is another line.                  \nShould work for all line endings.                          "
 		);
-		assert_eq!(comments, vec!["This is a comment.", "Another comment.", "and comments at the end."]);
+		assert_eq!(
+			comments,
+			vec!["This is a comment.", "Another comment.", "and comments at the end."]
+		);
 	}
 }
